@@ -2,12 +2,13 @@ const express = require("express");
 const Database = require("better-sqlite3");
 
 const app = express();
+
 app.use(express.json());
 app.use(express.static("public"));
 
 const db = new Database("database.db");
 
-// create table
+// Create table
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -17,7 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
 )
 `);
 
-// auth route
+// AUTH (register OR login)
 app.post("/auth", (req, res) => {
     const username = (req.body.username || "").trim();
     const password = (req.body.password || "").trim();
@@ -54,7 +55,7 @@ app.post("/auth", (req, res) => {
         }
     }
 
-    // LOGIN
+    // LOGIN CHECK
     if (user.password !== password) {
         return res.json({
             success: false,
@@ -69,19 +70,19 @@ app.post("/auth", (req, res) => {
     });
 });
 
-// owner account
-const owner = db.prepare(
+// CREATE ADMIN ACCOUNT (username = admin)
+const admin = db.prepare(
     "SELECT * FROM users WHERE username = ?"
-).get("Owner");
+).get("admin");
 
-if (!owner) {
+if (!admin) {
     db.prepare(
-        "INSERT INTO users (username, password, role) VALUES ('Owner', 'admin123', 'admin')"
+        "INSERT INTO users (username, password, role) VALUES ('admin', 'admin123', 'admin')"
     ).run();
 }
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-    console.log("Server running on port " + PORT);
+    console.log("Blocktopia running on port " + PORT);
 });

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Blocktopia</title>
+
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            background: #2b2b2b;
+            color: #d0d0d0;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            filter: hue-rotate(3deg) saturate(1.01);
+        }
+
+        h1 {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            margin: 0;
+            font-size: 20px;
+            color: #3b82f6;
+        }
+
+        button {
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: transform 0.2s ease, filter 0.2s ease, background 0.2s ease;
+        }
+
+        .download {
+            position: absolute;
+            top: 40px;
+            right: 40px;
+            padding: 10px 18px;
+            background: #444;
+            color: white;
+        }
+
+        .download:hover {
+            transform: scale(1.1);
+            filter: brightness(1.05);
+        }
+
+        .usernameDisplay {
+            position: absolute;
+            top: 48px;
+            right: 150px;
+            color: white;
+            font-size: 16px;
+        }
+
+        .gamename {
+            position: absolute;
+            top: calc(50% - 90px);
+            left: 75%;
+            transform: translateX(-50%);
+            font-size: 28px;
+            color: white;
+        }
+
+        .play {
+            position: absolute;
+            top: 50%;
+            left: 75%;
+            transform: translate(-50%, -50%);
+            font-size: 32px;
+            padding: 7px 60px;
+            background: #22c55e;
+            color: white;
+        }
+
+        .play:hover:not(:disabled) {
+            transform: translate(-50%, -50%) scale(1.1);
+            background: #29cc67;
+        }
+
+        .play:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+
+        .accountBox {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            padding: 20px;
+            background: #3a3a3a;
+            border-radius: 12px;
+            z-index: 101;
+            text-align: center;
+        }
+
+        .accountBox h2 {
+            margin-top: 0;
+            color: white;
+        }
+
+        .accountBox input {
+            width: 90%;
+            padding: 8px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        .confirmButton {
+            margin-top: 15px;
+            padding: 8px 20px;
+            background: #22c55e;
+            color: white;
+        }
+
+        .confirmButton:hover {
+            transform: scale(1.1);
+            background: #29cc67;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Blocktopia</h1>
+
+    <button class="download">Download</button>
+
+    <div class="usernameDisplay" id="usernameDisplay"></div>
+
+    <div class="gamename">Baseplate</div>
+
+    <button class="play" id="playButton" disabled>Play</button>
+
+    <div class="overlay" id="overlay"></div>
+
+    <div class="accountBox" id="accountBox">
+        <h2>Create an Account!</h2>
+
+        <input
+            type="text"
+            id="usernameInput"
+            placeholder="Username"
+            maxlength="25"
+        >
+
+        <br>
+
+        <button class="confirmButton" onclick="createAccount()">
+            Confirm
+        </button>
+    </div>
+
+    <script>
+        function createAccount() {
+            const username = document
+                .getElementById("usernameInput")
+                .value
+                .trim();
+
+            if (username === "") {
+                alert("Enter a username.");
+                return;
+            }
+
+            if (username.length > 25) {
+                alert("Username must be 25 characters or less.");
+                return;
+            }
+
+            const allowedPattern =
+                /^[A-Za-z0-9 !@#$%^&*()_\-+=\[\]{};:'",.<>\/?\\|`~]+$/;
+
+            if (!allowedPattern.test(username)) {
+                alert("Username contains unsupported characters.");
+                return;
+            }
+
+            const usernameDisplay =
+                document.getElementById("usernameDisplay");
+
+            usernameDisplay.textContent = username;
+
+            if (username.length === 1) {
+                usernameDisplay.style.color = "#3b82f6";
+            } else if (username.length === 2) {
+                usernameDisplay.style.color = "#facc15";
+            } else if (username.length === 3) {
+                usernameDisplay.style.color = "#8b5a2b";
+            } else {
+                usernameDisplay.style.color = "#ffffff";
+            }
+
+            document.getElementById("overlay").style.display = "none";
+            document.getElementById("accountBox").style.display = "none";
+
+            document.getElementById("playButton").disabled = false;
+        }
+    </script>
+</body>
+</html>

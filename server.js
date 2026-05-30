@@ -1,14 +1,14 @@
 const express = require("express");
-const sqlite3 = require("sqlite3").verbose();
+const Database = require("better-sqlite3");
 
 const app = express();
 app.use(express.json());
 app.use(express.static("public"));
 
-const db = new sqlite3.Database("database.db");
+const db = new Database("database.db");
 
-// Create table
-db.run(`
+// create table
+db.exec(`
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE,
@@ -17,86 +17,71 @@ CREATE TABLE IF NOT EXISTS users (
 )
 `);
 
-// CREATE / LOGIN ACCOUNT
+// auth route
 app.post("/auth", (req, res) => {
-    let username = (req.body.username || "").trim();
-    let password = (req.body.password || "").trim();
+    const username = (req.body.username || "").trim();
+    const password = (req.body.password || "").trim();
 
     if (!username || !password) {
         return res.json({ success: false, message: "Missing fields" });
     }
 
-    if (username.length > 25) {
-        return res.json({ success: false, message: "Username too long" });
-    }
-
-    // block invalid usernames like "."
-    if (username === ".") {
+    if (username.length > 25 || username === ".") {
         return res.json({ success: false, message: "Invalid username" });
     }
 
-    // check if user exists
-    db.get(
-        "SELECT * FROM users WHERE username = ?",
-        [username],
-        (err, user) => {
-            if (err) {
-                return res.json({ success: false, message: "Error" });
-            }
+    const user = db.prepare(
+        "SELECT * FROM users WHERE username = ?"
+    ).get(username);
 
-            // USER DOES NOT EXIST → CREATE
-            if (!user) {
-                db.run(
-                    "INSERT INTO users (username, password, role) VALUES (?, ?, 'user')",
-                    [username, password],
-                    function (err) {
-                        if (err) {
-                            return res.json({
-                                success: false,
-                                message: "Username taken"
-                            });
-                        }
-
-                        return res.json({
-                            success: true,
-                            username,
-                            role: "user"
-                        });
-                    }
-                );
-                return;
-            }
-
-            // USER EXISTS → CHECK PASSWORD
-            if (user.password !== password) {
-                return res.json({
-                    success: false,
-                    message: "Wrong password"
-                });
-            }
+    // CREATE ACCOUNT
+    if (!user) {
+        try {
+            db.prepare(
+                "INSERT INTO users (username, password, role) VALUES (?, ?, 'user')"
+            ).run(username, password);
 
             return res.json({
                 success: true,
-                username: user.username,
-                role: user.role
+                username,
+                role: "user"
+            });
+        } catch {
+            return res.json({
+                success: false,
+                message: "Username taken"
             });
         }
-    );
+    }
+
+    // LOGIN
+    if (user.password !== password) {
+        return res.json({
+            success: false,
+            message: "Wrong password"
+        });
+    }
+
+    return res.json({
+        success: true,
+        username: user.username,
+        role: user.role
+    });
 });
 
-// ensure owner exists (REAL admin account)
-db.get(
-    "SELECT * FROM users WHERE username = ?",
-    ["Owner"],
-    (err, row) => {
-        if (!row) {
-            db.run(
-                "INSERT INTO users (username, password, role) VALUES ('Owner', 'admin123', 'admin')"
-            );
-        }
-    }
-);
+// owner account
+const owner = db.prepare(
+    "SELECT * FROM users WHERE username = ?"
+).get("Owner");
 
-app.listen(3000, () => {
-    console.log("Server running on port 3000");
+if (!owner) {
+    db.prepare(
+        "INSERT INTO users (username, password, role) VALUES ('Owner', 'admin123', 'admin')"
+    ).run();
+}
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+    console.log("Server running on port " + PORT);
 });

@@ -1,207 +1,163 @@
-<!DOCTYPE html>
-<html>
-<head>
-<title>Blocktopia</title>
-
-<style>
-body {margin:0;background:#2b2b2b;font-family:Arial;color:white;overflow:hidden;}
-
-.title{position:absolute;top:10px;left:10px;color:#3b82f6;font-weight:bold;}
-
-.userTag{position:absolute;top:10px;right:120px;}
-
-.players{
-position:absolute;top:60px;left:10px;right:10px;height:40px;
-background:#1f1f1f;display:flex;gap:8px;padding:4px;
-overflow-x:auto;align-items:center;border-radius:10px;
-}
-
-.player{
-background:#333;padding:4px 8px;border-radius:6px;
-cursor:pointer;font-size:13px;display:flex;gap:5px;align-items:center;
-}
-
-.onlineDot{width:6px;height:6px;background:#22c55e;border-radius:50%;}
-
-.chatBox{
-position:fixed;bottom:10px;right:10px;width:320px;height:360px;
-background:#222;border-radius:10px;display:none;flex-direction:column;
-}
-
-.chatHeader{background:#333;padding:8px;display:flex;justify-content:space-between;}
-
-.chatMessages{flex:1;overflow:auto;padding:6px;font-size:13px;}
-
-.chatInput{display:flex;}
-.chatInput input{flex:1;padding:6px;}
-
-.orange{color:orange;}
-
-.adminA{
-width:10px;height:10px;background:yellow;border-radius:50%;
-display:inline-block;position:relative;
-}
-.adminA::after{
-content:"A";position:absolute;top:-3px;left:2px;
-color:gold;font-size:10px;font-weight:bold;
-}
-
-.panel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
-background:#3a3a3a;padding:20px;border-radius:12px;width:300px;}
-</style>
-</head>
-
-<body>
-
-<div class="title">Blocktopia</div>
-<div class="userTag" id="userTag"></div>
-
-<div class="players" id="players"></div>
-
-<div class="chatBox" id="chatBox">
-<div class="chatHeader">
-<span id="chatWith"></span>
-<button onclick="closeChat()">X</button>
-</div>
-
-<div class="chatMessages" id="chatMessages"></div>
-
-<div class="chatInput">
-<input id="msgInput">
-<button onclick="sendMsg()">Send</button>
-<button id="blockBtn" onclick="toggleBlock()">Block</button>
-</div>
-</div>
-
-<div class="panel" id="login">
-<input id="u">
-<input id="p" type="password">
-<button onclick="login()">Login</button>
-</div>
-
 <script>
 
-let me="";
-let chattingWith="";
-let blocked=[];
+let me = "";
+let chattingWith = "";
+let online = [];
 
-/* LOGIN */
-function login(){
-fetch("/auth",{method:"POST",headers:{"Content-Type":"application/json"},
-body:JSON.stringify({username:u.value,password:p.value})})
-.then(r=>r.json()).then(d=>{
-if(!d.success)return;
+/* LOGIN (FIXED + SAFE) */
+function login() {
 
-me=d.username;
+    const username = document.getElementById("u").value.trim();
+    const password = document.getElementById("p").value;
 
-login.style.display="none";
-userTag.textContent=me;
+    if (!username || !password) {
+        alert("Fill both fields");
+        return;
+    }
 
-loadUsers();
-setInterval(loadOnline,5000);
-});
+    fetch("/auth", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ username, password })
+    })
+    .then(r => r.json())
+    .then(d => {
+
+        if (!d.success) {
+            alert(d.message || "Login failed");
+            return;
+        }
+
+        me = d.username;
+
+        // SAFE UI SWITCH
+        const loginPanel = document.getElementById("login");
+        if (loginPanel) loginPanel.style.display = "none";
+
+        document.getElementById("userTag").textContent = me;
+
+        loadUsers();
+        loadOnline();
+
+        setInterval(loadOnline, 5000);
+    })
+    .catch(err => {
+        console.error("LOGIN ERROR:", err);
+        alert("Server not responding");
+    });
 }
 
-/* ONLINE */
-function loadOnline(){
-fetch("/online-users").then(r=>r.json()).then(o=>{
-window.online=o;
-});
+/* ONLINE USERS */
+function loadOnline() {
+    fetch("/online-users")
+        .then(r => r.json())
+        .then(data => {
+            online = data;
+        })
+        .catch(() => {});
 }
 
 /* USERS */
-function loadUsers(){
-fetch("/users").then(r=>r.json()).then(data=>{
-players.innerHTML="";
-data.forEach(u=>{
+function loadUsers() {
+    fetch("/users")
+        .then(r => r.json())
+        .then(data => {
 
-const div=document.createElement("div");
-div.className="player";
+            const box = document.getElementById("players");
+            box.innerHTML = "";
 
-/* COLORS */
-if(u.username==="Kesm") div.classList.add("orange");
+            data.forEach(u => {
 
-div.textContent=u.username;
+                const div = document.createElement("div");
+                div.className = "player";
 
-/* ONLINE */
-if(window.online?.includes(u.username)){
-const d=document.createElement("div");
-d.className="onlineDot";
-div.appendChild(d);
+                // special color fix
+                if (u.username === "Kesm") {
+                    div.style.color = "orange";
+                } else {
+                    div.style.color = "white";
+                }
+
+                div.textContent = u.username;
+
+                // ONLINE DOT FIX
+                if (online.includes(u.username)) {
+                    const dot = document.createElement("div");
+                    dot.className = "onlineDot";
+                    div.appendChild(dot);
+                }
+
+                div.onclick = () => openChat(u.username);
+
+                box.appendChild(div);
+            });
+        })
+        .catch(err => {
+            console.error("USER LOAD ERROR:", err);
+        });
 }
 
-div.onclick=()=>openChat(u.username);
-players.appendChild(div);
-});
-});
+/* CHAT OPEN */
+function openChat(user) {
+    chattingWith = user;
+
+    document.getElementById("chatBox").style.display = "flex";
+    document.getElementById("chatWith").textContent = user;
+
+    loadMessages();
 }
 
-/* CHAT */
-function openChat(user){
-chattingWith=user;
-chatBox.style.display="flex";
-chatWith.textContent=user;
-
-loadMessages();
-loadBlocked();
-}
-
-function closeChat(){chatBox.style.display="none";}
-
-/* BLOCK */
-function loadBlocked(){
-fetch(`/blocked?user=${me}`)
-.then(r=>r.json()).then(b=>{
-blocked=b;
-if(blocked.includes(chattingWith)){
-chatMessages.innerHTML="you have blocked this user, unblock them to see their messages";
-blockBtn.textContent="Unblock";
-}else{
-blockBtn.textContent="Block";
-}
-});
-}
-
-function toggleBlock(){
-if(blocked.includes(chattingWith)){
-fetch("/unblock-user",{method:"POST",headers:{"Content-Type":"application/json"},
-body:JSON.stringify({user:me,target:chattingWith})})
-.then(()=>loadBlocked());
-}else{
-fetch("/block-user",{method:"POST",headers:{"Content-Type":"application/json"},
-body:JSON.stringify({user:me,target:chattingWith})})
-.then(()=>loadBlocked());
-}
+/* CLOSE CHAT */
+function closeChat() {
+    document.getElementById("chatBox").style.display = "none";
 }
 
 /* MESSAGES */
-function loadMessages(){
-fetch(`/get-messages?user1=${me}&user2=${chattingWith}`)
-.then(r=>r.json()).then(msgs=>{
+function loadMessages() {
 
-chatMessages.innerHTML="";
+    fetch(`/get-messages?user1=${me}&user2=${chattingWith}`)
+        .then(r => r.json())
+        .then(msgs => {
 
-msgs.forEach(m=>{
-const div=document.createElement("div");
+            const box = document.getElementById("chatMessages");
+            box.innerHTML = "";
 
-if(m.sender==="admin"){
-div.innerHTML="👑 "+m.sender+": "+m.message;
-}else{
-div.textContent=m.sender+": "+m.message;
+            msgs.forEach(m => {
+
+                const div = document.createElement("div");
+
+                if (m.sender === "admin") {
+                    div.innerHTML = "👑 <b>admin</b>: " + m.message;
+                } else {
+                    div.textContent = m.sender + ": " + m.message;
+                }
+
+                box.appendChild(div);
+            });
+        });
 }
 
-chatMessages.appendChild(div);
-});
-});
-}
+/* SEND MESSAGE */
+function sendMsg() {
 
-function sendMsg(){
-fetch("/send-message",{method:"POST",headers:{"Content-Type":"application/json"},
-body:JSON.stringify({sender:me,receiver:chattingWith,message:msgInput.value})})
-.then(()=>{msgInput.value="";loadMessages();});
+    const input = document.getElementById("msgInput");
+    const msg = input.value.trim();
+
+    if (!msg || !chattingWith) return;
+
+    fetch("/send-message", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+            sender: me,
+            receiver: chattingWith,
+            message: msg
+        })
+    })
+    .then(() => {
+        input.value = "";
+        loadMessages();
+    });
 }
 
 </script>
-
-</body>
-</html>

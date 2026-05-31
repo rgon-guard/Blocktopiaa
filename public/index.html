@@ -1,103 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Blocktopia</title>
+
+<style>
+body {
+    margin: 0;
+    background: #2b2b2b;
+    font-family: Arial;
+    color: white;
+}
+
+.title {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    color: #3b82f6;
+    font-weight: bold;
+}
+
+.userTag {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+}
+
+.players {
+    position: absolute;
+    top: 60px;
+    left: 10px;
+    right: 10px;
+    height: 50px;
+    background: #1f1f1f;
+    display: flex;
+    gap: 6px;
+    padding: 6px;
+    overflow-x: auto;
+    border-radius: 8px;
+}
+
+.player {
+    background: #333;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.chatBox {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    width: 300px;
+    height: 350px;
+    background: #222;
+    border-radius: 10px;
+    display: none;
+    flex-direction: column;
+}
+
+.chatHeader {
+    background: #333;
+    padding: 6px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.chatMessages {
+    flex: 1;
+    overflow: auto;
+    padding: 6px;
+    font-size: 13px;
+}
+
+.chatInput {
+    display: flex;
+}
+
+.chatInput input {
+    flex: 1;
+    padding: 6px;
+}
+
+.panel {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background: #3a3a3a;
+    padding: 20px;
+    border-radius: 10px;
+    width: 280px;
+}
+
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+}
+</style>
+</head>
+
+<body>
+
+<div class="title">Blocktopia</div>
+<div class="userTag" id="userTag"></div>
+
+<div class="players" id="players"></div>
+
+<div class="chatBox" id="chatBox">
+    <div class="chatHeader">
+        <span id="chatWith">Chat</span>
+        <button onclick="closeChat()">X</button>
+    </div>
+
+    <div class="chatMessages" id="chatMessages"></div>
+
+    <div class="chatInput">
+        <input id="msgInput">
+        <button onclick="sendMsg()">Send</button>
+    </div>
+</div>
+
+<div class="overlay" id="overlay"></div>
+
+<div class="panel" id="loginPanel">
+    <h3>Login</h3>
+
+    <input id="u" placeholder="username">
+    <input id="p" type="password" placeholder="password">
+
+    <button onclick="login()">Confirm</button>
+</div>
+
 <script>
 
 let me = "";
 let chattingWith = "";
-let online = [];
 
-/* LOGIN (FIXED + SAFE) */
+/* LOGIN */
 function login() {
-
-    const username = document.getElementById("u").value.trim();
-    const password = document.getElementById("p").value;
-
-    if (!username || !password) {
-        alert("Fill both fields");
-        return;
-    }
 
     fetch("/auth", {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ username, password })
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+            username: document.getElementById("u").value,
+            password: document.getElementById("p").value
+        })
     })
     .then(r => r.json())
     .then(d => {
 
         if (!d.success) {
-            alert(d.message || "Login failed");
+            alert("Login failed");
             return;
         }
 
         me = d.username;
 
-        // SAFE UI SWITCH
-        const loginPanel = document.getElementById("login");
-        if (loginPanel) loginPanel.style.display = "none";
+        document.getElementById("overlay").style.display = "none";
+        document.getElementById("loginPanel").style.display = "none";
 
         document.getElementById("userTag").textContent = me;
 
         loadUsers();
-        loadOnline();
-
-        setInterval(loadOnline, 5000);
     })
     .catch(err => {
-        console.error("LOGIN ERROR:", err);
-        alert("Server not responding");
+        console.error(err);
+        alert("Server error");
     });
-}
-
-/* ONLINE USERS */
-function loadOnline() {
-    fetch("/online-users")
-        .then(r => r.json())
-        .then(data => {
-            online = data;
-        })
-        .catch(() => {});
 }
 
 /* USERS */
 function loadUsers() {
+
     fetch("/users")
-        .then(r => r.json())
-        .then(data => {
+    .then(r => r.json())
+    .then(data => {
 
-            const box = document.getElementById("players");
-            box.innerHTML = "";
+        const box = document.getElementById("players");
+        box.innerHTML = "";
 
-            data.forEach(u => {
+        data.forEach(u => {
 
-                const div = document.createElement("div");
-                div.className = "player";
+            const div = document.createElement("div");
+            div.className = "player";
+            div.textContent = u.username;
 
-                // special color fix
-                if (u.username === "Kesm") {
-                    div.style.color = "orange";
-                } else {
-                    div.style.color = "white";
-                }
+            div.onclick = () => openChat(u.username);
 
-                div.textContent = u.username;
-
-                // ONLINE DOT FIX
-                if (online.includes(u.username)) {
-                    const dot = document.createElement("div");
-                    dot.className = "onlineDot";
-                    div.appendChild(dot);
-                }
-
-                div.onclick = () => openChat(u.username);
-
-                box.appendChild(div);
-            });
-        })
-        .catch(err => {
-            console.error("USER LOAD ERROR:", err);
+            box.appendChild(div);
         });
+    });
 }
 
-/* CHAT OPEN */
+/* CHAT */
 function openChat(user) {
     chattingWith = user;
 
@@ -107,43 +205,31 @@ function openChat(user) {
     loadMessages();
 }
 
-/* CLOSE CHAT */
 function closeChat() {
     document.getElementById("chatBox").style.display = "none";
 }
 
-/* MESSAGES */
 function loadMessages() {
 
     fetch(`/get-messages?user1=${me}&user2=${chattingWith}`)
-        .then(r => r.json())
-        .then(msgs => {
+    .then(r => r.json())
+    .then(msgs => {
 
-            const box = document.getElementById("chatMessages");
-            box.innerHTML = "";
+        const box = document.getElementById("chatMessages");
+        box.innerHTML = "";
 
-            msgs.forEach(m => {
-
-                const div = document.createElement("div");
-
-                if (m.sender === "admin") {
-                    div.innerHTML = "👑 <b>admin</b>: " + m.message;
-                } else {
-                    div.textContent = m.sender + ": " + m.message;
-                }
-
-                box.appendChild(div);
-            });
+        msgs.forEach(m => {
+            const div = document.createElement("div");
+            div.textContent = `${m.sender}: ${m.message}`;
+            box.appendChild(div);
         });
+    });
 }
 
-/* SEND MESSAGE */
 function sendMsg() {
 
-    const input = document.getElementById("msgInput");
-    const msg = input.value.trim();
-
-    if (!msg || !chattingWith) return;
+    const msg = document.getElementById("msgInput").value;
+    if (!msg) return;
 
     fetch("/send-message", {
         method: "POST",
@@ -153,11 +239,13 @@ function sendMsg() {
             receiver: chattingWith,
             message: msg
         })
-    })
-    .then(() => {
-        input.value = "";
+    }).then(() => {
+        document.getElementById("msgInput").value = "";
         loadMessages();
     });
 }
 
 </script>
+
+</body>
+</html>

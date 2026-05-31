@@ -6,133 +6,189 @@
     <style>
         body {
             margin: 0;
+            height: 100vh;
             background: #2b2b2b;
-            font-family: Arial;
+            font-family: Arial, sans-serif;
             overflow: hidden;
+            color: white;
         }
 
-        h1 {
+        /* HEADER */
+        .header {
             position: absolute;
             top: 10px;
             left: 10px;
-            color: #3b82f6;
-            font-size: 18px;
+            right: 10px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
+        .title {
+            color: #3b82f6;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .rightButtons {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            border: none;
+            border-radius: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        .download {
+            background: #444;
+            color: white;
+        }
+
+        .settings {
+            background: #555;
+            color: white;
+        }
+
+        /* PLAYER BAR */
         .topbar {
             position: absolute;
-            top: 10px;
-            left: 120px;
-            right: 120px;
-            height: 40px;
+            top: 60px;
+            left: 10px;
+            right: 10px;
+            height: 45px;
             background: #1f1f1f;
             display: flex;
             align-items: center;
             gap: 10px;
             padding: 5px;
             overflow-x: auto;
+            border-radius: 10px;
         }
 
         .player {
             padding: 5px 10px;
             border-radius: 6px;
             background: #333;
-            color: white;
             white-space: nowrap;
         }
 
-        .download {
+        /* MAIN BUTTON */
+        .play {
             position: absolute;
-            right: 20px;
-            top: 10px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 28px;
+            padding: 12px 60px;
+            background: #22c55e;
+            color: white;
         }
 
-        .settings {
-            position: absolute;
-            right: 120px;
-            top: 10px;
+        /* OVERLAY */
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
         }
 
+        /* LOGIN BOX */
+        .accountBox {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background: #3a3a3a;
+            padding: 20px;
+            border-radius: 12px;
+            width: 280px;
+            text-align: center;
+        }
+
+        input {
+            width: 90%;
+            padding: 8px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 6px;
+        }
+
+        .confirm {
+            margin-top: 12px;
+            background: #22c55e;
+            color: white;
+        }
+
+        /* POPUP PANELS */
         .panel {
             position: fixed;
             left: 50%;
             top: 50%;
-            transform: translate(-50%,-50%);
+            transform: translate(-50%, -50%);
             background: #3a3a3a;
             padding: 20px;
             border-radius: 12px;
             display: none;
+            width: 280px;
+            text-align: center;
         }
 
-        input {
-            display: block;
-            margin: 10px 0;
+        .smallBtn {
+            margin-top: 10px;
+            background: #555;
+            color: white;
         }
     </style>
 </head>
 
 <body>
 
-<h1>Blocktopia</h1>
+<div class="header">
+    <div class="title">Blocktopia</div>
+
+    <div class="rightButtons">
+        <button class="download">Download</button>
+        <button class="settings" onclick="openSettings()">Settings</button>
+    </div>
+</div>
 
 <div class="topbar" id="topbar"></div>
 
-<button class="download">Download</button>
-<button class="settings" onclick="openSettings()">Settings</button>
+<button class="play" id="playButton" disabled>Play</button>
 
-<div class="panel" id="accountPanel">
-    <h3 id="panelTitle">Create Account</h3>
+<!-- LOGIN -->
+<div class="overlay" id="overlay"></div>
 
-    <input id="user" placeholder="username">
-    <input id="pass" type="password" placeholder="password">
+<div class="accountBox" id="loginBox">
+    <h3>Create Account</h3>
 
-    <button onclick="submit()">Confirm</button>
+    <input id="user" placeholder="Username" maxlength="25">
+    <input id="pass" type="password" placeholder="Password">
+
+    <button class="confirm" onclick="submit()">Confirm</button>
 </div>
 
+<!-- SETTINGS -->
 <div class="panel" id="settingsPanel">
     <h3>Settings</h3>
-    <button onclick="openChangePass()">Change Password</button>
+    <button class="smallBtn" onclick="openChange()">Change Password</button>
 </div>
 
-<div class="panel" id="changePassPanel">
+<!-- CHANGE PASSWORD -->
+<div class="panel" id="changePanel">
     <h3>Change Password</h3>
 
-    <input id="oldPass" placeholder="old password">
-    <input id="newPass" placeholder="new password">
+    <input id="oldPass" placeholder="Old password">
+    <input id="newPass" placeholder="New password">
 
-    <button onclick="changePassword()">Confirm</button>
+    <button class="smallBtn" onclick="changePassword()">Confirm</button>
 </div>
 
 <script>
 let currentUser = null;
-
-function loadPlayers(search="") {
-    fetch("/users?search=" + search)
-    .then(r => r.json())
-    .then(data => {
-        const bar = document.getElementById("topbar");
-        bar.innerHTML = "";
-
-        const show = data.slice(0,5);
-
-        show.forEach(u => {
-            const div = document.createElement("div");
-
-            const len = u.username.length;
-
-            let color = "white";
-            if (len === 1) color = "blue";
-            else if (len === 2) color = "yellow";
-            else if (len === 3) color = "brown";
-
-            div.className = "player";
-            div.style.color = color;
-            div.innerText = u.username;
-
-            bar.appendChild(div);
-        });
-    });
-}
 
 function submit() {
     const username = document.getElementById("user").value;
@@ -149,31 +205,56 @@ function submit() {
 
         currentUser = username;
 
-        document.getElementById("accountPanel").style.display="none";
+        document.getElementById("overlay").style.display = "none";
+        document.getElementById("loginBox").style.display = "none";
+
+        document.getElementById("playButton").disabled = false;
+
         loadPlayers();
     });
 }
 
-function openSettings(){
-    document.getElementById("settingsPanel").style.display="block";
+function loadPlayers(search="") {
+    fetch("/users?search=" + search)
+    .then(r=>r.json())
+    .then(data=>{
+        const bar = document.getElementById("topbar");
+        bar.innerHTML = "";
+
+        data.slice(0,5).forEach(u=>{
+            const div = document.createElement("div");
+
+            let color = "white";
+            if(u.username.length === 1) color = "blue";
+            else if(u.username.length === 2) color = "yellow";
+            else if(u.username.length === 3) color = "brown";
+
+            div.className = "player";
+            div.style.color = color;
+            div.innerText = u.username;
+
+            bar.appendChild(div);
+        });
+    });
 }
 
-function openChangePass(){
-    document.getElementById("settingsPanel").style.display="none";
-    document.getElementById("changePassPanel").style.display="block";
+function openSettings() {
+    document.getElementById("settingsPanel").style.display = "block";
 }
 
-function changePassword(){
-    const oldPassword = document.getElementById("oldPass").value;
-    const newPassword = document.getElementById("newPass").value;
+function openChange() {
+    document.getElementById("settingsPanel").style.display = "none";
+    document.getElementById("changePanel").style.display = "block";
+}
 
+function changePassword() {
     fetch("/change-password", {
         method:"POST",
         headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({
             username: currentUser,
-            oldPassword,
-            newPassword
+            oldPassword: document.getElementById("oldPass").value,
+            newPassword: document.getElementById("newPass").value
         })
     })
     .then(r=>r.json())

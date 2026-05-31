@@ -6,7 +6,6 @@ const app = express();
 app.use(express.json());
 app.use(express.static("public"));
 
-// DATABASE
 const db = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.NODE_ENV === "production"
@@ -14,12 +13,12 @@ const db = new Pool({
         : false
 });
 
-// TEST DB
+// DB TEST
 db.query("SELECT NOW()")
     .then(() => console.log("✅ DB CONNECTED"))
     .catch(err => console.log("❌ DB ERROR:", err));
 
-// CREATE TABLE
+// TABLE
 db.query(`
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -32,122 +31,112 @@ CREATE TABLE IF NOT EXISTS users (
 // ENSURE ADMIN
 async function ensureAdmin() {
     const res = await db.query(
-        "SELECT * FROM users WHERE username = $1",
+        "SELECT * FROM users WHERE username=$1",
         ["admin"]
     );
 
     if (res.rows.length === 0) {
         await db.query(
-            "INSERT INTO users (username, password, role) VALUES ('admin','admin123','admin')"
+            "INSERT INTO users (username,password,role) VALUES ('admin','admin123','admin')"
         );
-        console.log("👑 Admin created");
     }
 }
 ensureAdmin();
 
-// AUTH ROUTE
+// AUTH
 app.post("/auth", async (req, res) => {
-    try {
-        const username = (req.body.username || "").trim();
-        const password = (req.body.password || "").trim();
+    const { username, password } = req.body;
 
-        if (!username || !password) {
-            return res.json({ success: false, message: "Missing fields" });
-        }
+    const user = await db.query(
+        "SELECT * FROM users WHERE username=$1",
+        [username]
+    );
 
-        if (username.length > 25 || username === ".") {
-            return res.json({ success: false, message: "Invalid username" });
-        }
-
-        const result = await db.query(
-            "SELECT * FROM users WHERE username = $1",
-            [username]
+    if (user.rows.length === 0) {
+        await db.query(
+            "INSERT INTO users (username,password,role) VALUES ($1,$2,'user')",
+            [username, password]
         );
 
-        const user = result.rows[0];
-
-        // CREATE
-        if (!user) {
-            await db.query(
-                "INSERT INTO users (username,password,role) VALUES ($1,$2,'user')",
-                [username, password]
-            );
-
-            return res.json({
-                success: true,
-                username,
-                role: "user"
-            });
-        }
-
-        // LOGIN CHECK
-        if (user.password !== password) {
-            return res.json({
-                success: false,
-                message: "Wrong password"
-            });
-        }
-
-        return res.json({
-            success: true,
-            username: user.username,
-            role: user.role
-        });
-
-    } catch (err) {
-        console.log("AUTH ERROR:", err);
-        res.json({ success: false, message: "Server error" });
+        return res.json({ success: true, username, role: "user" });
     }
+
+    if (user.rows[0].password !== password) {
+        return res.json({ success: false, message: "Wrong password" });
+    }
+
+    res.json({
+        success: true,
+        username,
+        role: user.rows[0].role
+    });
 });
 
-// USERS LIST (TOP BAR)
+// GET USERS (search)
 app.get("/users", async (req, res) => {
-    try {
-        const search = req.query.search || "";
+    const search = req.query.search || "";
 
-        const result = await db.query(
-            "SELECT username FROM users WHERE username ILIKE $1 ORDER BY id DESC",
-            [`%${search}%`]
-        );
+    const result = await db.query(
+        "SELECT username, role FROM users WHERE username ILIKE $1 ORDER BY id DESC",
+        [`%${search}%`]
+    );
 
-        res.json(result.rows);
-    } catch (err) {
-        res.json([]);
+    res.json(result.rows);
+});
+
+// DELETE USER (ADMIN ONLY)
+app.post("/delete-user", async (req, res) => {
+    const { adminUser, target } = req.body;
+
+    // verify admin
+    const admin = await db.query(
+        "SELECT * FROM users WHERE username=$1",
+        [adminUser]
+    );
+
+    if (admin.rows.length === 0 || admin.rows[0].role !== "admin") {
+        return res.json({ success: false });
     }
+
+    if (target === "admin") {
+        return res.json({ success: false, message: "Cannot delete admin" });
+    }
+
+    await db.query(
+        "DELETE FROM users WHERE username=$1",
+        [target]
+    );
+
+    res.json({ success: true });
 });
 
 // CHANGE PASSWORD
 app.post("/change-password", async (req, res) => {
-    try {
-        const { username, oldPassword, newPassword } = req.body;
+    const { username, oldPassword, newPassword } = req.body;
 
-        const user = await db.query(
-            "SELECT * FROM users WHERE username=$1",
-            [username]
-        );
+    const user = await db.query(
+        "SELECT * FROM users WHERE username=$1",
+        [username]
+    );
 
-        if (user.rows.length === 0) {
-            return res.json({ success: false });
-        }
-
-        if (user.rows[0].password !== oldPassword) {
-            return res.json({ success: false, message: "Wrong password" });
-        }
-
-        await db.query(
-            "UPDATE users SET password=$1 WHERE username=$2",
-            [newPassword, username]
-        );
-
-        res.json({ success: true });
-
-    } catch (err) {
-        res.json({ success: false });
+    if (user.rows.length === 0) {
+        return res.json({ success: false });
     }
+
+    if (user.rows[0].password !== oldPassword) {
+        return res.json({ success: false, message: "Wrong password" });
+    }
+
+    await db.query(
+        "UPDATE users SET password=$1 WHERE username=$2",
+        [newPassword, username]
+    );
+
+    res.json({ success: true });
 });
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-    console.log("🚀 Blocktopia running on port " + PORT);
+    console.log("🚀 Blocktopia running");
 });

@@ -8,27 +8,39 @@
             margin: 0;
             background: #2b2b2b;
             font-family: Arial;
-            overflow: hidden;
             color: white;
+            overflow: hidden;
         }
 
-        h1 {
+        .header {
             position: absolute;
             top: 10px;
             left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .title {
             color: #3b82f6;
-            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .userTag {
+            position: absolute;
+            top: 40px;
+            left: 10px;
+            color: #aaa;
         }
 
         .topbar {
             position: absolute;
-            top: 60px;
+            top: 70px;
             left: 10px;
             right: 10px;
-            height: 45px;
+            height: 50px;
             background: #1f1f1f;
             display: flex;
-            align-items: center;
             gap: 10px;
             padding: 5px;
             overflow-x: auto;
@@ -39,7 +51,15 @@
             padding: 5px 10px;
             background: #333;
             border-radius: 6px;
-            white-space: nowrap;
+            cursor: pointer;
+        }
+
+        .dropdown {
+            position: absolute;
+            background: #444;
+            padding: 10px;
+            border-radius: 8px;
+            display: none;
         }
 
         .play {
@@ -49,18 +69,10 @@
             transform: translate(-50%,-50%);
             padding: 12px 50px;
             background: #22c55e;
-            color: white;
-            border: none;
             border-radius: 10px;
         }
 
-        .overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.6);
-        }
-
-        .box {
+        .panel {
             position: fixed;
             left: 50%;
             top: 50%;
@@ -68,106 +80,149 @@
             background: #3a3a3a;
             padding: 20px;
             border-radius: 12px;
-            width: 280px;
-            text-align: center;
+            display: none;
+            width: 300px;
         }
 
         input {
             width: 90%;
-            padding: 8px;
-            margin: 8px 0;
-        }
-
-        button {
-            padding: 8px 15px;
-            border: none;
-            border-radius: 8px;
-            background: #22c55e;
-            color: white;
-            cursor: pointer;
+            margin: 6px 0;
+            padding: 6px;
         }
     </style>
 </head>
 
 <body>
 
-<h1>Blocktopia</h1>
+<div class="header">
+    <div class="title">Blocktopia</div>
+    <button onclick="openSettings()">Settings</button>
+</div>
+
+<div class="userTag" id="userTag"></div>
 
 <div class="topbar" id="topbar"></div>
 
-<button class="play" id="play" disabled>Play</button>
+<div class="dropdown" id="dropdown"></div>
 
-<div class="overlay" id="overlay"></div>
+<button class="play">Play</button>
 
-<div class="box" id="loginBox">
-    <h3>Create Account</h3>
-    <input id="user" placeholder="Username">
-    <input id="pass" type="password" placeholder="Password">
-    <button onclick="submit()">Confirm</button>
+<!-- LOGIN -->
+<div id="login" class="panel" style="display:block;">
+    <h3>Login</h3>
+    <input id="u" placeholder="username">
+    <input id="p" type="password" placeholder="password">
+    <button onclick="login()">Confirm</button>
+</div>
+
+<!-- SETTINGS -->
+<div class="panel" id="settings">
+    <h3>Settings</h3>
+    <button onclick="openChange()">Change Password</button>
+</div>
+
+<!-- CHANGE PASS -->
+<div class="panel" id="change">
+    <h3>Change Password</h3>
+    <input id="old">
+    <input id="new">
+    <button onclick="changePass()">Confirm</button>
 </div>
 
 <script>
 let currentUser = null;
+let role = null;
 
-function submit() {
-    const username = document.getElementById("user").value;
-    const password = document.getElementById("pass").value;
-
-    fetch("/auth", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ username, password })
+function login(){
+    fetch("/auth",{
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({
+            username: u.value,
+            password: p.value
+        })
     })
-    .then(r => r.json())
-    .then(d => {
-        console.log("AUTH:", d);
-
-        if (!d.success) {
-            alert(d.message || "Failed");
-            return;
-        }
+    .then(r=>r.json())
+    .then(d=>{
+        if(!d.success) return;
 
         currentUser = d.username;
+        role = d.role;
 
-        document.getElementById("overlay").style.display = "none";
-        document.getElementById("loginBox").style.display = "none";
-        document.getElementById("play").disabled = false;
+        document.getElementById("login").style.display="none";
+        document.getElementById("userTag").innerText =
+            "Logged in as: " + currentUser + " (" + role + ")";
 
         loadUsers();
-    })
-    .catch(err => {
-        console.error("FETCH ERROR:", err);
-        alert("Server not reachable");
     });
 }
 
-function loadUsers(search="") {
-    fetch("/users?search=" + search)
-    .then(r => r.json())
-    .then(data => {
+function loadUsers(search=""){
+    fetch("/users?search="+search)
+    .then(r=>r.json())
+    .then(data=>{
         const bar = document.getElementById("topbar");
-        bar.innerHTML = "";
+        bar.innerHTML="";
 
-        data.slice(0,5).forEach(u => {
+        data.slice(0,5).forEach(u=>{
             const div = document.createElement("div");
-            div.className = "player";
+            div.className="player";
+            div.innerText=u.username;
 
-            let len = u.username.length;
-            let color = "white";
-
-            if (len === 1) color = "blue";
-            else if (len === 2) color = "yellow";
-            else if (len === 3) color = "brown";
-
-            div.style.color = color;
-            div.textContent = u.username;
+            div.onclick=()=>{
+                if(role==="admin"){
+                    showDropdown(u.username, div);
+                }
+            };
 
             bar.appendChild(div);
         });
     });
 }
 
-loadUsers();
+function showDropdown(target, el){
+    const d = document.getElementById("dropdown");
+    d.style.display="block";
+    d.style.left = el.getBoundingClientRect().left + "px";
+    d.style.top = "120px";
+
+    d.innerHTML = `
+        <div>Admin Options</div>
+        <button onclick="deleteUser('${target}')">Delete</button>
+    `;
+}
+
+function deleteUser(target){
+    fetch("/delete-user",{
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({
+            adminUser: currentUser,
+            target
+        })
+    }).then(()=>loadUsers());
+}
+
+function openSettings(){
+    document.getElementById("settings").style.display="block";
+}
+
+function openChange(){
+    document.getElementById("settings").style.display="none";
+    document.getElementById("change").style.display="block";
+}
+
+function changePass(){
+    fetch("/change-password",{
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({
+            username: currentUser,
+            oldPassword: old.value,
+            newPassword: new.value
+        })
+    });
+}
 </script>
 
 </body>

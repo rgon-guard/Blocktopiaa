@@ -6,54 +6,20 @@
     <style>
         body {
             margin: 0;
-            height: 100vh;
             background: #2b2b2b;
-            font-family: Arial, sans-serif;
+            font-family: Arial;
             overflow: hidden;
             color: white;
         }
 
-        /* HEADER */
-        .header {
+        h1 {
             position: absolute;
             top: 10px;
             left: 10px;
-            right: 10px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .title {
             color: #3b82f6;
             font-size: 18px;
-            font-weight: bold;
         }
 
-        .rightButtons {
-            display: flex;
-            gap: 10px;
-        }
-
-        button {
-            border: none;
-            border-radius: 10px;
-            padding: 8px 12px;
-            cursor: pointer;
-        }
-
-        .download {
-            background: #444;
-            color: white;
-        }
-
-        .settings {
-            background: #555;
-            color: white;
-        }
-
-        /* PLAYER BAR */
         .topbar {
             position: absolute;
             top: 60px;
@@ -71,36 +37,34 @@
 
         .player {
             padding: 5px 10px;
-            border-radius: 6px;
             background: #333;
+            border-radius: 6px;
             white-space: nowrap;
         }
 
-        /* MAIN BUTTON */
         .play {
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 28px;
-            padding: 12px 60px;
+            transform: translate(-50%,-50%);
+            padding: 12px 50px;
             background: #22c55e;
             color: white;
+            border: none;
+            border-radius: 10px;
         }
 
-        /* OVERLAY */
         .overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.6);
         }
 
-        /* LOGIN BOX */
-        .accountBox {
+        .box {
             position: fixed;
             left: 50%;
             top: 50%;
-            transform: translate(-50%, -50%);
+            transform: translate(-50%,-50%);
             background: #3a3a3a;
             padding: 20px;
             border-radius: 12px;
@@ -111,80 +75,35 @@
         input {
             width: 90%;
             padding: 8px;
-            margin-top: 10px;
-            border: none;
-            border-radius: 6px;
+            margin: 8px 0;
         }
 
-        .confirm {
-            margin-top: 12px;
+        button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 8px;
             background: #22c55e;
             color: white;
-        }
-
-        /* POPUP PANELS */
-        .panel {
-            position: fixed;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            background: #3a3a3a;
-            padding: 20px;
-            border-radius: 12px;
-            display: none;
-            width: 280px;
-            text-align: center;
-        }
-
-        .smallBtn {
-            margin-top: 10px;
-            background: #555;
-            color: white;
+            cursor: pointer;
         }
     </style>
 </head>
 
 <body>
 
-<div class="header">
-    <div class="title">Blocktopia</div>
-
-    <div class="rightButtons">
-        <button class="download">Download</button>
-        <button class="settings" onclick="openSettings()">Settings</button>
-    </div>
-</div>
+<h1>Blocktopia</h1>
 
 <div class="topbar" id="topbar"></div>
 
-<button class="play" id="playButton" disabled>Play</button>
+<button class="play" id="play" disabled>Play</button>
 
-<!-- LOGIN -->
 <div class="overlay" id="overlay"></div>
 
-<div class="accountBox" id="loginBox">
+<div class="box" id="loginBox">
     <h3>Create Account</h3>
-
-    <input id="user" placeholder="Username" maxlength="25">
+    <input id="user" placeholder="Username">
     <input id="pass" type="password" placeholder="Password">
-
-    <button class="confirm" onclick="submit()">Confirm</button>
-</div>
-
-<!-- SETTINGS -->
-<div class="panel" id="settingsPanel">
-    <h3>Settings</h3>
-    <button class="smallBtn" onclick="openChange()">Change Password</button>
-</div>
-
-<!-- CHANGE PASSWORD -->
-<div class="panel" id="changePanel">
-    <h3>Change Password</h3>
-
-    <input id="oldPass" placeholder="Old password">
-    <input id="newPass" placeholder="New password">
-
-    <button class="smallBtn" onclick="changePassword()">Confirm</button>
+    <button onclick="submit()">Confirm</button>
 </div>
 
 <script>
@@ -195,75 +114,60 @@ function submit() {
     const password = document.getElementById("pass").value;
 
     fetch("/auth", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
         body: JSON.stringify({ username, password })
     })
-    .then(r=>r.json())
-    .then(d=>{
-        if(!d.success) return;
+    .then(r => r.json())
+    .then(d => {
+        console.log("AUTH:", d);
 
-        currentUser = username;
+        if (!d.success) {
+            alert(d.message || "Failed");
+            return;
+        }
+
+        currentUser = d.username;
 
         document.getElementById("overlay").style.display = "none";
         document.getElementById("loginBox").style.display = "none";
+        document.getElementById("play").disabled = false;
 
-        document.getElementById("playButton").disabled = false;
-
-        loadPlayers();
+        loadUsers();
+    })
+    .catch(err => {
+        console.error("FETCH ERROR:", err);
+        alert("Server not reachable");
     });
 }
 
-function loadPlayers(search="") {
+function loadUsers(search="") {
     fetch("/users?search=" + search)
-    .then(r=>r.json())
-    .then(data=>{
+    .then(r => r.json())
+    .then(data => {
         const bar = document.getElementById("topbar");
         bar.innerHTML = "";
 
-        data.slice(0,5).forEach(u=>{
+        data.slice(0,5).forEach(u => {
             const div = document.createElement("div");
-
-            let color = "white";
-            if(u.username.length === 1) color = "blue";
-            else if(u.username.length === 2) color = "yellow";
-            else if(u.username.length === 3) color = "brown";
-
             div.className = "player";
+
+            let len = u.username.length;
+            let color = "white";
+
+            if (len === 1) color = "blue";
+            else if (len === 2) color = "yellow";
+            else if (len === 3) color = "brown";
+
             div.style.color = color;
-            div.innerText = u.username;
+            div.textContent = u.username;
 
             bar.appendChild(div);
         });
     });
 }
 
-function openSettings() {
-    document.getElementById("settingsPanel").style.display = "block";
-}
-
-function openChange() {
-    document.getElementById("settingsPanel").style.display = "none";
-    document.getElementById("changePanel").style.display = "block";
-}
-
-function changePassword() {
-    fetch("/change-password", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({
-            username: currentUser,
-            oldPassword: document.getElementById("oldPass").value,
-            newPassword: document.getElementById("newPass").value
-        })
-    })
-    .then(r=>r.json())
-    .then(d=>{
-        alert(d.success ? "Changed!" : "Failed");
-    });
-}
-
-loadPlayers();
+loadUsers();
 </script>
 
 </body>

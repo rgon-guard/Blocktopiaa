@@ -6,6 +6,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static("public"));
 
+// DATABASE
 const db = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.NODE_ENV === "production"
@@ -13,10 +14,10 @@ const db = new Pool({
         : false
 });
 
-// DEBUG CONNECTION
+// TEST DB
 db.query("SELECT NOW()")
     .then(() => console.log("✅ DB CONNECTED"))
-    .catch(err => console.log("❌ DB ERROR", err));
+    .catch(err => console.log("❌ DB ERROR:", err));
 
 // CREATE TABLE
 db.query(`
@@ -39,89 +40,114 @@ async function ensureAdmin() {
         await db.query(
             "INSERT INTO users (username, password, role) VALUES ('admin','admin123','admin')"
         );
+        console.log("👑 Admin created");
     }
 }
 ensureAdmin();
 
-// AUTH (register/login)
+// AUTH ROUTE
 app.post("/auth", async (req, res) => {
-    const username = (req.body.username || "").trim();
-    const password = (req.body.password || "").trim();
-
-    if (!username || !password) {
-        return res.json({ success: false });
-    }
-
     try {
-        const user = await db.query(
+        const username = (req.body.username || "").trim();
+        const password = (req.body.password || "").trim();
+
+        if (!username || !password) {
+            return res.json({ success: false, message: "Missing fields" });
+        }
+
+        if (username.length > 25 || username === ".") {
+            return res.json({ success: false, message: "Invalid username" });
+        }
+
+        const result = await db.query(
             "SELECT * FROM users WHERE username = $1",
             [username]
         );
 
-        if (user.rows.length === 0) {
+        const user = result.rows[0];
+
+        // CREATE
+        if (!user) {
             await db.query(
                 "INSERT INTO users (username,password,role) VALUES ($1,$2,'user')",
                 [username, password]
             );
 
-            return res.json({ success: true, username, role: "user" });
+            return res.json({
+                success: true,
+                username,
+                role: "user"
+            });
         }
 
-        if (user.rows[0].password !== password) {
-            return res.json({ success: false, message: "Wrong password" });
+        // LOGIN CHECK
+        if (user.password !== password) {
+            return res.json({
+                success: false,
+                message: "Wrong password"
+            });
         }
 
         return res.json({
             success: true,
-            username,
-            role: user.rows[0].role
+            username: user.username,
+            role: user.role
         });
 
     } catch (err) {
-        console.log(err);
-        return res.json({ success: false });
+        console.log("AUTH ERROR:", err);
+        res.json({ success: false, message: "Server error" });
     }
 });
 
-// GET USERS (for top bar list)
+// USERS LIST (TOP BAR)
 app.get("/users", async (req, res) => {
-    const search = req.query.search || "";
+    try {
+        const search = req.query.search || "";
 
-    const result = await db.query(
-        "SELECT username FROM users WHERE username ILIKE $1 ORDER BY id DESC",
-        [`%${search}%`]
-    );
+        const result = await db.query(
+            "SELECT username FROM users WHERE username ILIKE $1 ORDER BY id DESC",
+            [`%${search}%`]
+        );
 
-    res.json(result.rows);
+        res.json(result.rows);
+    } catch (err) {
+        res.json([]);
+    }
 });
 
 // CHANGE PASSWORD
 app.post("/change-password", async (req, res) => {
-    const { username, oldPassword, newPassword } = req.body;
+    try {
+        const { username, oldPassword, newPassword } = req.body;
 
-    const user = await db.query(
-        "SELECT * FROM users WHERE username=$1",
-        [username]
-    );
+        const user = await db.query(
+            "SELECT * FROM users WHERE username=$1",
+            [username]
+        );
 
-    if (user.rows.length === 0) {
-        return res.json({ success: false });
+        if (user.rows.length === 0) {
+            return res.json({ success: false });
+        }
+
+        if (user.rows[0].password !== oldPassword) {
+            return res.json({ success: false, message: "Wrong password" });
+        }
+
+        await db.query(
+            "UPDATE users SET password=$1 WHERE username=$2",
+            [newPassword, username]
+        );
+
+        res.json({ success: true });
+
+    } catch (err) {
+        res.json({ success: false });
     }
-
-    if (user.rows[0].password !== oldPassword) {
-        return res.json({ success: false, message: "Wrong password" });
-    }
-
-    await db.query(
-        "UPDATE users SET password=$1 WHERE username=$2",
-        [newPassword, username]
-    );
-
-    res.json({ success: true });
 });
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-    console.log("🚀 Blocktopia running");
+    console.log("🚀 Blocktopia running on port " + PORT);
 });

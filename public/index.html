@@ -1,398 +1,228 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Blocktopia</title>
+<title>Blocktopia</title>
 
-    <style>
-        body {
-            margin: 0;
-            background: #2b2b2b;
-            color: white;
-            font-family: Arial, sans-serif;
-            overflow: hidden;
-        }
+<style>
+body {
+    margin:0;
+    background:#2b2b2b;
+    font-family:Arial;
+    color:white;
+    overflow:hidden;
+}
 
-        .title {
-            position: absolute;
-            top: 12px;
-            left: 12px;
-            color: #3b82f6;
-            font-size: 18px;
-            font-weight: bold;
-        }
+.title {
+    position:absolute;
+    top:10px;
+    left:10px;
+    color:#3b82f6;
+    font-weight:bold;
+}
 
-        .usernameDisplay {
-            position: absolute;
-            top: 12px;
-            right: 120px;
-            font-size: 16px;
-        }
+.userTag {
+    position:absolute;
+    top:10px;
+    right:120px;
+}
 
-        .settingsButton {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-        }
+.players {
+    position:absolute;
+    top:60px;
+    left:10px;
+    right:10px;
+    height:70px;
+    background:#1f1f1f;
+    display:flex;
+    gap:8px;
+    padding:8px;
+    overflow-x:auto;
+    border-radius:10px;
+}
 
-        button {
-            border: none;
-            border-radius: 10px;
-            padding: 8px 14px;
-            cursor: pointer;
-        }
+.player {
+    background:#333;
+    padding:6px 10px;
+    border-radius:6px;
+    cursor:pointer;
+    position:relative;
+}
 
-        .play {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            background: #22c55e;
-            color: white;
-            font-size: 28px;
-            padding: 10px 60px;
-        }
+.dot {
+    width:8px;
+    height:8px;
+    background:white;
+    border-radius:50%;
+    position:absolute;
+    top:2px;
+    right:2px;
+}
 
-        .playerContainer {
-            position: absolute;
-            top: 60px;
-            left: 10px;
-            right: 10px;
-            height: 70px;
-            background: #1f1f1f;
-            border-radius: 10px;
-            padding: 10px;
-        }
+.chatBox {
+    position:fixed;
+    bottom:10px;
+    right:10px;
+    width:300px;
+    height:350px;
+    background:#222;
+    border-radius:10px;
+    display:none;
+    flex-direction:column;
+}
 
-        .searchBar {
-            width: 220px;
-            padding: 6px;
-            border-radius: 6px;
-            border: none;
-        }
+.chatHeader {
+    background:#333;
+    padding:8px;
+    display:flex;
+    justify-content:space-between;
+}
 
-        .players {
-            display: flex;
-            gap: 8px;
-            margin-top: 8px;
-            overflow-x: auto;
-        }
+.chatMessages {
+    flex:1;
+    overflow:auto;
+    padding:6px;
+}
 
-        .player {
-            background: #333;
-            padding: 6px 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            white-space: nowrap;
-        }
+.chatInput {
+    display:flex;
+}
 
-        .overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,.5);
-        }
+.chatInput input {
+    flex:1;
+    padding:6px;
+}
 
-        .panel {
-            position: fixed;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            background: #3a3a3a;
-            padding: 20px;
-            border-radius: 12px;
-            width: 300px;
-        }
+.overlay {
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.6);
+}
 
-        .panel input {
-            width: 100%;
-            margin-top: 10px;
-            padding: 8px;
-            box-sizing: border-box;
-        }
-
-        .panel button {
-            margin-top: 10px;
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        .dropdown {
-            position: fixed;
-            background: #444;
-            border-radius: 8px;
-            padding: 8px;
-            display: none;
-            z-index: 1000;
-        }
-    </style>
+.panel {
+    position:fixed;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-50%);
+    background:#3a3a3a;
+    padding:20px;
+    border-radius:12px;
+    width:300px;
+}
+</style>
 </head>
+
 <body>
 
 <div class="title">Blocktopia</div>
+<div class="userTag" id="userTag"></div>
 
-<div class="usernameDisplay" id="usernameDisplay"></div>
+<div class="players" id="players"></div>
 
-<button class="settingsButton" onclick="openSettings()">
-    Settings
-</button>
+<div class="chatBox" id="chatBox">
+    <div class="chatHeader">
+        <span id="chatWith">Chat</span>
+        <button onclick="closeChat()">X</button>
+    </div>
 
-<div class="playerContainer">
-    <input
-        class="searchBar"
-        id="searchInput"
-        placeholder="Search users..."
-        oninput="loadUsers()"
-    >
+    <div class="chatMessages" id="chatMessages"></div>
 
-    <div class="players" id="players"></div>
+    <div class="chatInput">
+        <input id="msgInput">
+        <button onclick="sendMsg()">Send</button>
+    </div>
 </div>
-
-<button class="play" id="playButton" disabled>
-    Play
-</button>
 
 <div class="overlay" id="overlay"></div>
 
-<div class="panel" id="loginPanel">
-    <h2>Create Account / Login</h2>
-
-    <input id="usernameInput" placeholder="Username" maxlength="25">
-    <input id="passwordInput" type="password" placeholder="Password">
-
+<div class="panel" id="login">
+    <h3>Login</h3>
+    <input id="u">
+    <input id="p" type="password">
     <button onclick="login()">Confirm</button>
 </div>
 
-<div class="panel hidden" id="settingsPanel">
-    <h2>Settings</h2>
-
-    <button onclick="openPasswordPanel()">
-        Change Password
-    </button>
-
-    <br><br>
-
-    <button onclick="closeSettings()">
-        Close
-    </button>
-</div>
-
-<div class="panel hidden" id="passwordPanel">
-    <h2>Change Password</h2>
-
-    <input
-        id="oldPasswordInput"
-        type="password"
-        placeholder="Old Password"
-    >
-
-    <input
-        id="newPasswordInput"
-        type="password"
-        placeholder="New Password"
-    >
-
-    <button onclick="changePassword()">
-        Confirm
-    </button>
-
-    <button onclick="closePasswordPanel()">
-        Back
-    </button>
-</div>
-
-<div class="dropdown" id="dropdown"></div>
-
 <script>
-let currentUser = "";
-let currentRole = "";
+let me = "";
+let chattingWith = "";
 
-function usernameColor(name) {
-    if (name.length === 1) return "blue";
-    if (name.length === 2) return "yellow";
-    if (name.length === 3) return "brown";
-    return "white";
-}
-
-function login() {
-    const username =
-        document.getElementById("usernameInput").value.trim();
-
-    const password =
-        document.getElementById("passwordInput").value;
-
-    fetch("/auth", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            username,
-            password
+function login(){
+    fetch("/auth",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+            username:u.value,
+            password:p.value
         })
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(r=>r.json())
+    .then(d=>{
+        if(!d.success)return;
 
-        if (!data.success) {
-            alert(data.message || "Failed");
-            return;
-        }
+        me = d.username;
 
-        currentUser = data.username;
-        currentRole = data.role || "user";
+        overlay.style.display="none";
+        login.style.display="none";
 
-        document.getElementById("usernameDisplay").textContent =
-            currentUser;
-
-        document.getElementById("overlay").style.display = "none";
-        document.getElementById("loginPanel").style.display = "none";
-
-        document.getElementById("playButton").disabled = false;
+        userTag.textContent = me;
 
         loadUsers();
-    })
-    .catch(err => {
-        console.error(err);
-        alert("Login failed.");
     });
 }
 
-function loadUsers() {
+function loadUsers(){
+    fetch("/users")
+    .then(r=>r.json())
+    .then(data=>{
+        players.innerHTML="";
 
-    const search =
-        document.getElementById("searchInput").value;
+        data.forEach(u=>{
+            const d=document.createElement("div");
+            d.className="player";
+            d.textContent=u.username;
 
-    fetch("/users?search=" + encodeURIComponent(search))
-    .then(r => r.json())
-    .then(users => {
+            d.onclick=()=>openChat(u.username);
 
-        const container =
-            document.getElementById("players");
-
-        container.innerHTML = "";
-
-        users.slice(0, 5).forEach(user => {
-
-            const username =
-                user.username || user;
-
-            const div =
-                document.createElement("div");
-
-            div.className = "player";
-            div.textContent = username;
-            div.style.color = usernameColor(username);
-
-            div.onclick = (e) => {
-
-                if (currentRole !== "admin")
-                    return;
-
-                openDropdown(
-                    e.clientX,
-                    e.clientY,
-                    username
-                );
-            };
-
-            container.appendChild(div);
+            players.appendChild(d);
         });
     });
 }
 
-function openDropdown(x, y, username) {
-
-    const dropdown =
-        document.getElementById("dropdown");
-
-    dropdown.style.display = "block";
-    dropdown.style.left = x + "px";
-    dropdown.style.top = y + "px";
-
-    dropdown.innerHTML = `
-        <div>${username}</div>
-        <button onclick="deleteUser('${username}')">
-            Delete Account
-        </button>
-    `;
+function openChat(user){
+    chattingWith=user;
+    chatBox.style.display="flex";
+    chatWith.textContent=user;
+    loadMessages();
 }
 
-document.addEventListener("click", () => {
-    document.getElementById("dropdown").style.display =
-        "none";
-});
+function closeChat(){
+    chatBox.style.display="none";
+}
 
-function deleteUser(username) {
-
-    fetch("/delete-user", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            adminUser: currentUser,
-            target: username
-        })
-    })
-    .then(r => r.json())
-    .then(() => {
-        loadUsers();
+function loadMessages(){
+    fetch(`/get-messages?user1=${me}&user2=${chattingWith}`)
+    .then(r=>r.json())
+    .then(msgs=>{
+        chatMessages.innerHTML="";
+        msgs.forEach(m=>{
+            const div=document.createElement("div");
+            div.textContent=`${m.sender}: ${m.message}`;
+            chatMessages.appendChild(div);
+        });
     });
 }
 
-function openSettings() {
-    document.getElementById("settingsPanel")
-        .classList.remove("hidden");
-}
-
-function closeSettings() {
-    document.getElementById("settingsPanel")
-        .classList.add("hidden");
-}
-
-function openPasswordPanel() {
-
-    closeSettings();
-
-    document.getElementById("passwordPanel")
-        .classList.remove("hidden");
-}
-
-function closePasswordPanel() {
-
-    document.getElementById("passwordPanel")
-        .classList.add("hidden");
-}
-
-function changePassword() {
-
-    const oldPassword =
-        document.getElementById("oldPasswordInput").value;
-
-    const newPassword =
-        document.getElementById("newPasswordInput").value;
-
-    fetch("/change-password", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            username: currentUser,
-            oldPassword,
-            newPassword
+function sendMsg(){
+    fetch("/send-message",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+            sender:me,
+            receiver:chattingWith,
+            message:msgInput.value
         })
-    })
-    .then(r => r.json())
-    .then(data => {
-
-        if (data.success) {
-            alert("Password changed.");
-            closePasswordPanel();
-        } else {
-            alert(data.message || "Failed.");
-        }
+    }).then(()=> {
+        msgInput.value="";
+        loadMessages();
     });
 }
 </script>

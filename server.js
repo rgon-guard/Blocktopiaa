@@ -13,12 +13,7 @@ const db = new Pool({
         : false
 });
 
-// DB TEST
-db.query("SELECT NOW()")
-    .then(() => console.log("✅ DB CONNECTED"))
-    .catch(err => console.log("❌ DB ERROR:", err));
-
-// TABLE
+// USERS TABLE
 db.query(`
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -28,7 +23,19 @@ CREATE TABLE IF NOT EXISTS users (
 )
 `);
 
-// ENSURE ADMIN
+// MESSAGES TABLE (NEW)
+db.query(`
+CREATE TABLE IF NOT EXISTS messages (
+    id SERIAL PRIMARY KEY,
+    sender TEXT,
+    receiver TEXT,
+    message TEXT,
+    read BOOLEAN DEFAULT FALSE,
+    time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+`);
+
+// ADMIN
 async function ensureAdmin() {
     const res = await db.query(
         "SELECT * FROM users WHERE username=$1",
@@ -72,7 +79,7 @@ app.post("/auth", async (req, res) => {
     });
 });
 
-// GET USERS (search)
+// USERS
 app.get("/users", async (req, res) => {
     const search = req.query.search || "";
 
@@ -84,11 +91,10 @@ app.get("/users", async (req, res) => {
     res.json(result.rows);
 });
 
-// DELETE USER (ADMIN ONLY)
+// DELETE USER
 app.post("/delete-user", async (req, res) => {
     const { adminUser, target } = req.body;
 
-    // verify admin
     const admin = await db.query(
         "SELECT * FROM users WHERE username=$1",
         [adminUser]
@@ -99,7 +105,7 @@ app.post("/delete-user", async (req, res) => {
     }
 
     if (target === "admin") {
-        return res.json({ success: false, message: "Cannot delete admin" });
+        return res.json({ success: false });
     }
 
     await db.query(
@@ -110,7 +116,58 @@ app.post("/delete-user", async (req, res) => {
     res.json({ success: true });
 });
 
-// CHANGE PASSWORD
+// SEND MESSAGE
+app.post("/send-message", async (req, res) => {
+    const { sender, receiver, message } = req.body;
+
+    await db.query(
+        "INSERT INTO messages (sender,receiver,message) VALUES ($1,$2,$3)",
+        [sender, receiver, message]
+    );
+
+    res.json({ success: true });
+});
+
+// GET CHAT
+app.get("/get-messages", async (req, res) => {
+    const { user1, user2 } = req.query;
+
+    const result = await db.query(
+        `SELECT * FROM messages
+         WHERE (sender=$1 AND receiver=$2)
+         OR (sender=$2 AND receiver=$1)
+         ORDER BY time ASC`,
+        [user1, user2]
+    );
+
+    res.json(result.rows);
+});
+
+// UNREAD CHECK
+app.get("/unread", async (req, res) => {
+    const { user } = req.query;
+
+    const result = await db.query(
+        "SELECT sender FROM messages WHERE receiver=$1 AND read=false",
+        [user]
+    );
+
+    res.json(result.rows);
+});
+
+// MARK READ
+app.post("/mark-read", async (req, res) => {
+    const { sender, receiver } = req.body;
+
+    await db.query(
+        "UPDATE messages SET read=true WHERE sender=$1 AND receiver=$2",
+        [sender, receiver]
+    );
+
+    res.json({ success: true });
+});
+
+// PASSWORD CHANGE
 app.post("/change-password", async (req, res) => {
     const { username, oldPassword, newPassword } = req.body;
 
@@ -124,7 +181,7 @@ app.post("/change-password", async (req, res) => {
     }
 
     if (user.rows[0].password !== oldPassword) {
-        return res.json({ success: false, message: "Wrong password" });
+        return res.json({ success: false });
     }
 
     await db.query(
@@ -136,7 +193,4 @@ app.post("/change-password", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-    console.log("🚀 Blocktopia running");
-});
+app.listen(PORT, () => console.log("🚀 Blocktopia running"));

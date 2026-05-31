@@ -13,7 +13,7 @@ const db = new Pool({
         : false
 });
 
-// USERS TABLE
+// USERS
 db.query(`
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -23,19 +23,30 @@ CREATE TABLE IF NOT EXISTS users (
 )
 `);
 
-// MESSAGES TABLE (NEW)
+// MESSAGES
 db.query(`
 CREATE TABLE IF NOT EXISTS messages (
     id SERIAL PRIMARY KEY,
     sender TEXT,
     receiver TEXT,
     message TEXT,
-    read BOOLEAN DEFAULT FALSE,
     time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 `);
 
-// ADMIN
+// BLOCKS
+db.query(`
+CREATE TABLE IF NOT EXISTS blocks (
+    id SERIAL PRIMARY KEY,
+    blocker TEXT,
+    blocked TEXT
+)
+`);
+
+// ONLINE USERS
+let onlineUsers = new Map();
+
+/* ADMIN */
 async function ensureAdmin() {
     const res = await db.query(
         "SELECT * FROM users WHERE username=$1",
@@ -50,7 +61,7 @@ async function ensureAdmin() {
 }
 ensureAdmin();
 
-// AUTH
+/* AUTH */
 app.post("/auth", async (req, res) => {
     const { username, password } = req.body;
 
@@ -64,133 +75,119 @@ app.post("/auth", async (req, res) => {
             "INSERT INTO users (username,password,role) VALUES ($1,$2,'user')",
             [username, password]
         );
-
-        return res.json({ success: true, username, role: "user" });
+    } else if (user.rows[0].password !== password) {
+        return res.json({ success:false });
     }
 
-    if (user.rows[0].password !== password) {
-        return res.json({ success: false, message: "Wrong password" });
-    }
+    onlineUsers.set(username, Date.now());
 
     res.json({
-        success: true,
+        success:true,
         username,
-        role: user.rows[0].role
+        role: user.rows[0]?.role || "user"
     });
 });
 
-// USERS
-app.get("/users", async (req, res) => {
+/* ONLINE HEARTBEAT */
+app.post("/heartbeat", (req,res)=>{
+    const { user } = req.body;
+    onlineUsers.set(user, Date.now());
+    res.json({ ok:true });
+});
+
+/* CLEAN OLD ONLINE USERS */
+setInterval(()=>{
+    const now = Date.now();
+    for (const [user,time] of onlineUsers.entries()) {
+        if (now - time > 15000) onlineUsers.delete(user);
+    }
+},5000);
+
+/* ONLINE LIST */
+app.get("/online-users",(req,res)=>{
+    res.json([...onlineUsers.keys()]);
+});
+
+/* USERS */
+app.get("/users", async (req,res)=>{
     const search = req.query.search || "";
 
     const result = await db.query(
-        "SELECT username, role FROM users WHERE username ILIKE $1 ORDER BY id DESC",
+        "SELECT username, role FROM users WHERE username ILIKE $1",
         [`%${search}%`]
     );
 
     res.json(result.rows);
 });
 
-// DELETE USER
-app.post("/delete-user", async (req, res) => {
-    const { adminUser, target } = req.body;
-
-    const admin = await db.query(
-        "SELECT * FROM users WHERE username=$1",
-        [adminUser]
-    );
-
-    if (admin.rows.length === 0 || admin.rows[0].role !== "admin") {
-        return res.json({ success: false });
-    }
-
-    if (target === "admin") {
-        return res.json({ success: false });
-    }
+/* BLOCK */
+app.post("/block-user", async (req,res)=>{
+    const { user, target } = req.body;
 
     await db.query(
-        "DELETE FROM users WHERE username=$1",
-        [target]
+        "INSERT INTO blocks (blocker,blocked) VALUES ($1,$2)",
+        [user,target]
     );
 
-    res.json({ success: true });
+    res.json({ success:true });
 });
 
-// SEND MESSAGE
-app.post("/send-message", async (req, res) => {
+app.post("/unblock-user", async (req,res)=>{
+    const { user, target } = req.body;
+
+    await db.query(
+        "DELETE FROM blocks WHERE blocker=$1 AND blocked=$2",
+        [user,target]
+    );
+
+    res.json({ success:true });
+});
+
+app.get("/blocked", async (req,res)=>{
+    const { user } = req.query;
+
+    const r = await db.query(
+        "SELECT blocked FROM blocks WHERE blocker=$1",
+        [user]
+    );
+
+    res.json(r.rows.map(x=>x.blocked));
+});
+
+/* MESSAGES */
+app.post("/send-message", async (req,res)=>{
     const { sender, receiver, message } = req.body;
+
+    const blocked = await db.query(
+        "SELECT * FROM blocks WHERE blocker=$1 AND blocked=$2",
+        [receiver, sender]
+    );
+
+    if (blocked.rows.length > 0) {
+        return res.json({ success:false });
+    }
 
     await db.query(
         "INSERT INTO messages (sender,receiver,message) VALUES ($1,$2,$3)",
-        [sender, receiver, message]
+        [sender,receiver,message]
     );
 
-    res.json({ success: true });
+    res.json({ success:true });
 });
 
-// GET CHAT
-app.get("/get-messages", async (req, res) => {
-    const { user1, user2 } = req.query;
+app.get("/get-messages", async (req,res)=>{
+    const { user1,user2 } = req.query;
 
-    const result = await db.query(
+    const r = await db.query(
         `SELECT * FROM messages
          WHERE (sender=$1 AND receiver=$2)
          OR (sender=$2 AND receiver=$1)
          ORDER BY time ASC`,
-        [user1, user2]
+        [user1,user2]
     );
 
-    res.json(result.rows);
-});
-
-// UNREAD CHECK
-app.get("/unread", async (req, res) => {
-    const { user } = req.query;
-
-    const result = await db.query(
-        "SELECT sender FROM messages WHERE receiver=$1 AND read=false",
-        [user]
-    );
-
-    res.json(result.rows);
-});
-
-// MARK READ
-app.post("/mark-read", async (req, res) => {
-    const { sender, receiver } = req.body;
-
-    await db.query(
-        "UPDATE messages SET read=true WHERE sender=$1 AND receiver=$2",
-        [sender, receiver]
-    );
-
-    res.json({ success: true });
-});
-
-// PASSWORD CHANGE
-app.post("/change-password", async (req, res) => {
-    const { username, oldPassword, newPassword } = req.body;
-
-    const user = await db.query(
-        "SELECT * FROM users WHERE username=$1",
-        [username]
-    );
-
-    if (user.rows.length === 0) {
-        return res.json({ success: false });
-    }
-
-    if (user.rows[0].password !== oldPassword) {
-        return res.json({ success: false });
-    }
-
-    await db.query(
-        "UPDATE users SET password=$1 WHERE username=$2",
-        [newPassword, username]
-    );
-
-    res.json({ success: true });
+    res.json(r.rows);
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("🚀 Blocktopia running"));
+app.listen(PORT, ()=>console.log("Blocktopia running"));

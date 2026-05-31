@@ -4,139 +4,50 @@
 <title>Blocktopia</title>
 
 <style>
-body {
-    margin:0;
-    background:#2b2b2b;
-    font-family:Arial;
-    color:white;
-    overflow:hidden;
+body {margin:0;background:#2b2b2b;font-family:Arial;color:white;overflow:hidden;}
+
+.title{position:absolute;top:10px;left:10px;color:#3b82f6;font-weight:bold;}
+
+.userTag{position:absolute;top:10px;right:120px;}
+
+.players{
+position:absolute;top:60px;left:10px;right:10px;height:40px;
+background:#1f1f1f;display:flex;gap:8px;padding:4px;
+overflow-x:auto;align-items:center;border-radius:10px;
 }
 
-.title {
-    position:absolute;
-    top:10px;
-    left:10px;
-    color:#3b82f6;
-    font-weight:bold;
+.player{
+background:#333;padding:4px 8px;border-radius:6px;
+cursor:pointer;font-size:13px;display:flex;gap:5px;align-items:center;
 }
 
-/* USER TOP RIGHT */
-.userTag {
-    position:absolute;
-    top:10px;
-    right:120px;
+.onlineDot{width:6px;height:6px;background:#22c55e;border-radius:50%;}
+
+.chatBox{
+position:fixed;bottom:10px;right:10px;width:320px;height:360px;
+background:#222;border-radius:10px;display:none;flex-direction:column;
 }
 
-/* PLAYER BAR (FIXED HEIGHT) */
-.players {
-    position:absolute;
-    top:60px;
-    left:10px;
-    right:10px;
-    height:40px; /* 🔥 FIX: was too tall */
-    background:#1f1f1f;
-    display:flex;
-    gap:8px;
-    padding:4px; /* 🔥 reduced padding */
-    overflow-x:auto;
-    border-radius:10px;
-    align-items:center;
+.chatHeader{background:#333;padding:8px;display:flex;justify-content:space-between;}
+
+.chatMessages{flex:1;overflow:auto;padding:6px;font-size:13px;}
+
+.chatInput{display:flex;}
+.chatInput input{flex:1;padding:6px;}
+
+.orange{color:orange;}
+
+.adminA{
+width:10px;height:10px;background:yellow;border-radius:50%;
+display:inline-block;position:relative;
+}
+.adminA::after{
+content:"A";position:absolute;top:-3px;left:2px;
+color:gold;font-size:10px;font-weight:bold;
 }
 
-.player {
-    background:#333;
-    padding:4px 8px;
-    border-radius:6px;
-    cursor:pointer;
-    font-size:13px;
-    position:relative;
-    display:flex;
-    align-items:center;
-    gap:6px;
-}
-
-/* ONLINE DOT */
-.onlineDot {
-    width:6px;
-    height:6px;
-    background:#22c55e;
-    border-radius:50%;
-}
-
-/* UNREAD DOT */
-.unreadDot {
-    width:6px;
-    height:6px;
-    background:white;
-    border-radius:50%;
-}
-
-/* CHAT */
-.chatBox {
-    position:fixed;
-    bottom:10px;
-    right:10px;
-    width:320px;
-    height:360px;
-    background:#222;
-    border-radius:10px;
-    display:none;
-    flex-direction:column;
-}
-
-.chatHeader {
-    background:#333;
-    padding:8px;
-    display:flex;
-    justify-content:space-between;
-}
-
-.chatMessages {
-    flex:1;
-    overflow:auto;
-    padding:6px;
-    font-size:13px;
-}
-
-.chatInput {
-    display:flex;
-}
-
-.chatInput input {
-    flex:1;
-    padding:6px;
-}
-
-/* LOGIN */
-.overlay {
-    position:fixed;
-    inset:0;
-    background:rgba(0,0,0,0.6);
-}
-
-.panel {
-    position:fixed;
-    left:50%;
-    top:50%;
-    transform:translate(-50%,-50%);
-    background:#3a3a3a;
-    padding:20px;
-    border-radius:12px;
-    width:300px;
-    z-index:10;
-}
-
-/* TOAST */
-.toast {
-    position:fixed;
-    bottom:380px;
-    right:10px;
-    background:#333;
-    padding:10px;
-    border-radius:8px;
-    font-size:13px;
-    display:none;
-}
+.panel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+background:#3a3a3a;padding:20px;border-radius:12px;width:300px;}
 </style>
 </head>
 
@@ -147,183 +58,147 @@ body {
 
 <div class="players" id="players"></div>
 
-<!-- CHAT -->
 <div class="chatBox" id="chatBox">
-    <div class="chatHeader">
-        <span id="chatWith">Chat</span>
-        <button onclick="closeChat()">X</button>
-    </div>
-
-    <div class="chatMessages" id="chatMessages"></div>
-
-    <div class="chatInput">
-        <input id="msgInput">
-        <button onclick="sendMsg()">Send</button>
-    </div>
+<div class="chatHeader">
+<span id="chatWith"></span>
+<button onclick="closeChat()">X</button>
 </div>
 
-<!-- LOGIN -->
-<div class="overlay" id="overlay"></div>
+<div class="chatMessages" id="chatMessages"></div>
 
-<div class="panel" id="loginPanel">
-    <h3>Login</h3>
-
-    <input id="u" placeholder="username">
-    <input id="p" type="password" placeholder="password">
-
-    <button onclick="login()">Confirm</button>
+<div class="chatInput">
+<input id="msgInput">
+<button onclick="sendMsg()">Send</button>
+<button id="blockBtn" onclick="toggleBlock()">Block</button>
+</div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="panel" id="login">
+<input id="u">
+<input id="p" type="password">
+<button onclick="login()">Login</button>
+</div>
 
 <script>
 
-let me = "";
-let chattingWith = "";
-
-/* STORE ONLINE USERS (simple session memory) */
-let online = new Set();
-
-/* COLORS FIXED */
-function usernameColor(name) {
-    if (name.length === 1) return "blue";
-    if (name.length === 2) return "yellow";
-    if (name.length === 3) return "brown";
-    return "white";
-}
-
-/* TOAST */
-function showToast(msg) {
-    const t = document.getElementById("toast");
-    t.textContent = msg;
-    t.style.display = "block";
-
-    setTimeout(() => {
-        t.style.display = "none";
-    }, 2000);
-}
+let me="";
+let chattingWith="";
+let blocked=[];
 
 /* LOGIN */
-function login() {
+function login(){
+fetch("/auth",{method:"POST",headers:{"Content-Type":"application/json"},
+body:JSON.stringify({username:u.value,password:p.value})})
+.then(r=>r.json()).then(d=>{
+if(!d.success)return;
 
-    fetch("/auth", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-            username:u.value,
-            password:p.value
-        })
-    })
-    .then(r=>r.json())
-    .then(d=>{
+me=d.username;
 
-        if(!d.success){
-            alert(d.message || "failed");
-            return;
-        }
+login.style.display="none";
+userTag.textContent=me;
 
-        me = d.username;
-        online.add(me);
+loadUsers();
+setInterval(loadOnline,5000);
+});
+}
 
-        overlay.style.display="none";
-        loginPanel.style.display="none";
-
-        userTag.textContent = me;
-
-        loadUsers();
-
-        showToast("Logged in!");
-    });
+/* ONLINE */
+function loadOnline(){
+fetch("/online-users").then(r=>r.json()).then(o=>{
+window.online=o;
+});
 }
 
 /* USERS */
-function loadUsers() {
+function loadUsers(){
+fetch("/users").then(r=>r.json()).then(data=>{
+players.innerHTML="";
+data.forEach(u=>{
 
-    fetch("/users")
-    .then(r=>r.json())
-    .then(data=>{
+const div=document.createElement("div");
+div.className="player";
 
-        players.innerHTML="";
+/* COLORS */
+if(u.username==="Kesm") div.classList.add("orange");
 
-        data.forEach(u=>{
+div.textContent=u.username;
 
-            const div=document.createElement("div");
-            div.className="player";
+/* ONLINE */
+if(window.online?.includes(u.username)){
+const d=document.createElement("div");
+d.className="onlineDot";
+div.appendChild(d);
+}
 
-            /* NAME COLOR FIX */
-            div.style.color = usernameColor(u.username);
-
-            /* ONLINE DOT */
-            if (online.has(u.username)) {
-                const dot = document.createElement("div");
-                dot.className = "onlineDot";
-                div.appendChild(dot);
-            }
-
-            const span = document.createElement("span");
-            span.textContent = u.username;
-            div.appendChild(span);
-
-            div.onclick = ()=>openChat(u.username);
-
-            players.appendChild(div);
-        });
-    });
+div.onclick=()=>openChat(u.username);
+players.appendChild(div);
+});
+});
 }
 
 /* CHAT */
-function openChat(user) {
-    chattingWith = user;
+function openChat(user){
+chattingWith=user;
+chatBox.style.display="flex";
+chatWith.textContent=user;
 
-    chatBox.style.display="flex";
-    chatWith.textContent=user;
-
-    loadMessages();
+loadMessages();
+loadBlocked();
 }
 
-function closeChat(){
-    chatBox.style.display="none";
+function closeChat(){chatBox.style.display="none";}
+
+/* BLOCK */
+function loadBlocked(){
+fetch(`/blocked?user=${me}`)
+.then(r=>r.json()).then(b=>{
+blocked=b;
+if(blocked.includes(chattingWith)){
+chatMessages.innerHTML="you have blocked this user, unblock them to see their messages";
+blockBtn.textContent="Unblock";
+}else{
+blockBtn.textContent="Block";
+}
+});
+}
+
+function toggleBlock(){
+if(blocked.includes(chattingWith)){
+fetch("/unblock-user",{method:"POST",headers:{"Content-Type":"application/json"},
+body:JSON.stringify({user:me,target:chattingWith})})
+.then(()=>loadBlocked());
+}else{
+fetch("/block-user",{method:"POST",headers:{"Content-Type":"application/json"},
+body:JSON.stringify({user:me,target:chattingWith})})
+.then(()=>loadBlocked());
+}
 }
 
 /* MESSAGES */
 function loadMessages(){
-    fetch(`/get-messages?user1=${me}&user2=${chattingWith}`)
-    .then(r=>r.json())
-    .then(msgs=>{
+fetch(`/get-messages?user1=${me}&user2=${chattingWith}`)
+.then(r=>r.json()).then(msgs=>{
 
-        chatMessages.innerHTML="";
+chatMessages.innerHTML="";
 
-        msgs.forEach(m=>{
+msgs.forEach(m=>{
+const div=document.createElement("div");
 
-            const div=document.createElement("div");
-            div.textContent = `${m.sender}: ${m.message}`;
+if(m.sender==="admin"){
+div.innerHTML="👑 "+m.sender+": "+m.message;
+}else{
+div.textContent=m.sender+": "+m.message;
+}
 
-            chatMessages.appendChild(div);
-
-            /* UNREAD RESET SIMULATION */
-            if (m.receiver === me) {
-                showToast("New message from " + m.sender);
-            }
-        });
-    });
+chatMessages.appendChild(div);
+});
+});
 }
 
 function sendMsg(){
-    const msg = msgInput.value;
-    if(!msg) return;
-
-    fetch("/send-message",{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-            sender:me,
-            receiver:chattingWith,
-            message:msg
-        })
-    }).then(()=>{
-        msgInput.value="";
-        loadMessages();
-    });
+fetch("/send-message",{method:"POST",headers:{"Content-Type":"application/json"},
+body:JSON.stringify({sender:me,receiver:chattingWith,message:msgInput.value})})
+.then(()=>{msgInput.value="";loadMessages();});
 }
 
 </script>

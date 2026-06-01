@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username TEXT UNIQUE,
     password TEXT,
-    role TEXT DEFAULT 'user'
+    role TEXT DEFAULT 'user',
+    points BIGINT DEFAULT 0,
+    lastclaim BIGINT DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -54,7 +56,7 @@ async function ensureAdmin() {
 ensureAdmin();
 
 /* =========================
-   SWEAR FILTER (FIXED)
+   SWEAR FILTER (SAFE BASE)
 ========================= */
 
 const SWEAR_WORDS = [
@@ -65,11 +67,7 @@ const SWEAR_WORDS = [
     "damn",
     "cunt",
     "bastard",
-    "crap",
-    "nigga",
-    "nigger",
-    "niga",
-    "niger"
+    "crap"
 ];
 
 function leetFix(t) {
@@ -92,30 +90,29 @@ function normalize(t) {
 }
 
 function filterMessage(msg) {
+    let result = msg;
 
-    let cleanedMsg = msg;
-
-    let normalized = normalize(msg);
+    let normMsg = normalize(msg);
 
     for (let bad of SWEAR_WORDS) {
 
-        let badNorm = normalize(bad);
+        let normBad = normalize(bad);
 
-        if (normalized.includes(badNorm)) {
+        if (normMsg.includes(normBad)) {
 
             let regex = new RegExp(
                 bad.split("").join("[^a-zA-Z0-9]*"),
                 "gi"
             );
 
-            cleanedMsg = cleanedMsg.replace(
+            result = result.replace(
                 regex,
                 "*".repeat(bad.length)
             );
         }
     }
 
-    return cleanedMsg;
+    return result;
 }
 
 /* =========================
@@ -124,9 +121,6 @@ function filterMessage(msg) {
 
 app.post("/auth", async (req,res)=>{
     const { username, password } = req.body;
-
-    if (!username || !password)
-        return res.json({ success:false });
 
     const u = await db.query(
         "SELECT * FROM users WHERE username=$1",
@@ -139,7 +133,7 @@ app.post("/auth", async (req,res)=>{
             [username,password]
         );
 
-        return res.json({ success:true, username, role:"user" });
+        return res.json({ success:true, username, role:"user", points:0 });
     }
 
     if (u.rows[0].password !== password)
@@ -148,7 +142,8 @@ app.post("/auth", async (req,res)=>{
     res.json({
         success:true,
         username,
-        role:u.rows[0].role
+        role:u.rows[0].role,
+        points:u.rows[0].points
     });
 });
 
@@ -161,27 +156,60 @@ app.get("/users", async (req,res)=>{
     res.json(r.rows);
 });
 
-/* BLOCK */
-app.post("/block-user", async (req,res)=>{
-    const { user, target } = req.body;
+/* PROFILE */
+app.get("/profile", async (req,res)=>{
+    const { username } = req.query;
 
-    await db.query(
-        "INSERT INTO blocks (blocker,blocked) VALUES ($1,$2)",
-        [user,target]
+    const r = await db.query(
+        "SELECT username,points,role FROM users WHERE username=$1",
+        [username]
     );
 
-    res.json({ success:true });
+    res.json(r.rows[0]);
 });
 
-app.post("/unblock-user", async (req,res)=>{
-    const { user, target } = req.body;
+/* POINTS (DAILY SYSTEM) */
+function getReward(days) {
+    if (days >= 21) return 4;
+    if (days >= 14) return 3;
+    if (days >= 7) return 2;
+    return 1;
+}
 
-    await db.query(
-        "DELETE FROM blocks WHERE blocker=$1 AND blocked=$2",
-        [user,target]
+app.post("/claim-points", async (req,res)=>{
+    const { username } = req.body;
+
+    const u = await db.query(
+        "SELECT * FROM users WHERE username=$1",
+        [username]
     );
 
-    res.json({ success:true });
+    if (!u.rows.length)
+        return res.json({ success:false });
+
+    let user = u.rows[0];
+
+    let now = Date.now();
+    let last = user.lastclaim || 0;
+
+    let diff = Math.floor((now - last) / (1000*60*60*24));
+
+    if (diff < 1)
+        return res.json({ success:false });
+
+    let reward = getReward(diff);
+
+    let newPoints = Math.min(
+        2147483647,
+        (user.points || 0) + reward
+    );
+
+    await db.query(
+        "UPDATE users SET points=$1,lastclaim=$2 WHERE username=$3",
+        [newPoints, now, username]
+    );
+
+    res.json({ success:true, points:newPoints });
 });
 
 /* CHAT */
@@ -195,7 +223,7 @@ app.post("/send-message", async (req,res)=>{
         [receiver,sender]
     );
 
-    if (blocked.rows.length > 0)
+    if (blocked.rows.length)
         return res.json({ success:false });
 
     await db.query(
@@ -221,5 +249,5 @@ app.get("/get-messages", async (req,res)=>{
 });
 
 app.listen(process.env.PORT || 3000, ()=>{
-    console.log("Running");
+    console.log("Blocktopia running");
 });

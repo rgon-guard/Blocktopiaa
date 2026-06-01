@@ -4,48 +4,85 @@
 <title>Blocktopia</title>
 
 <style>
-body{margin:0;background:#2b2b2b;font-family:Arial;color:white;}
+body{
+margin:0;background:#2b2b2b;
+font-family:Arial;color:white;
+}
 
-.title{position:absolute;top:10px;left:10px;color:#3b82f6;}
+.title{
+position:absolute;top:10px;left:10px;
+color:#3b82f6;
+}
+
+.topRight{
+position:absolute;top:10px;right:10px;
+text-align:right;
+}
 
 .players{
 position:absolute;top:60px;left:10px;right:10px;
-height:22px;background:#1f1f1f;
-display:flex;gap:6px;overflow-x:auto;
-padding:6px;border-radius:8px;
+height:22px;
+background:#1f1f1f;
+display:flex;gap:6px;
+overflow-x:auto;
+padding:4px;
+border-radius:8px;
+font-size:12px;
 }
 
 .player{
-background:#333;padding:5px 10px;
-border-radius:6px;cursor:pointer;
-font-size:13px;
+background:#333;
+padding:4px 8px;
+border-radius:6px;
+cursor:pointer;
+white-space:nowrap;
 }
 
 .chatBox{
-position:fixed;bottom:10px;right:10px;
-width:300px;height:350px;background:#222;
-display:none;flex-direction:column;
+position:fixed;
+bottom:10px;
+right:10px;
+width:320px;
+height:360px;
+background:#222;
+display:none;
+flex-direction:column;
 border-radius:10px;
 }
 
 .chatHeader{
-background:#333;padding:6px;
-display:flex;justify-content:space-between;
+padding:6px;
+background:#333;
+display:flex;
+justify-content:space-between;
 }
 
 .chatMessages{
-flex:1;overflow:auto;padding:6px;
+flex:1;
+overflow:auto;
+padding:6px;
 font-size:13px;
 }
 
-.chatInput{display:flex;}
-.chatInput input{flex:1;padding:6px;}
+.chatInput{
+display:flex;
+}
+
+.chatInput input{
+flex:1;
+padding:6px;
+}
 </style>
 </head>
 
 <body>
 
 <div class="title">Blocktopia</div>
+
+<div class="topRight">
+<div id="userDisplay"></div>
+<div id="pointsDisplay" style="color:gold;"></div>
+</div>
 
 <div class="players" id="players"></div>
 
@@ -65,23 +102,30 @@ font-size:13px;
 
 <script>
 
-let me="";
-let chattingWith="";
+let me = "";
+let chattingWith = "";
 
-/* LOGIN SIMPLE */
-fetch("/auth", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({username:"test",password:"123"})
+/* LOGIN DEMO */
+me = "test";
+
+/* LOAD PROFILE */
+function loadProfile(){
+fetch("/profile?username="+me)
+.then(r=>r.json())
+.then(d=>{
+userDisplay.textContent="Logged in as: "+d.username;
+pointsDisplay.textContent=d.points+" p";
 });
+}
+loadProfile();
 
 /* USERS */
 function loadUsers(){
 fetch("/users")
 .then(r=>r.json())
-.then(data=>{
+.then(users=>{
 players.innerHTML="";
-data.forEach(u=>{
+users.forEach(u=>{
 let d=document.createElement("div");
 d.className="player";
 d.textContent=u.username;
@@ -138,7 +182,7 @@ loadMessages();
 
 /* ENTER KEY */
 document.addEventListener("keydown",e=>{
-if(e.key==="Enter" && chattingWith){
+if(e.key==="Enter"&&chattingWith){
 sendMsg();
 }
 });

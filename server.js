@@ -65,7 +65,11 @@ const SWEAR_WORDS = [
     "damn",
     "cunt",
     "bastard",
-    "crap"
+    "crap",
+    "nigga",
+    "nigger",
+    "niga",
+    "niger"
 ];
 
 function leetFix(t) {
